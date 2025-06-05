@@ -162,7 +162,68 @@ int main(int argc, char* argv[]) {
         }
 
         if (seq(input, "o") || seq(input, "other")) {
-
+            bool otherLoop= true;
+            while (otherLoop) {
+                std::cout << "Choose an operation: " << std::endl;
+                std::cout << "     [1] Big number calculator" << std::endl;
+                std::cout << "     [2] String to int (ASCII)" << std::endl;
+                std::cout << "     [3] int (ASCII) to String" << std::endl;
+                std::cout << "     [Q] Quit" << std::endl;
+                std::cout << "Enter your choice: ";
+                std::getline(std::cin, input);
+                trim(input);
+                switch (input[0]) {
+                    case '1': {
+                        std::cout << "Enter num1: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class num1(input);
+                        std::cout << "Enter num2: ";
+                        std::getline(std::cin, input);
+                        mpz_class num2(input);
+                        std::cout << "Choose an operation (+, -, *, /): ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        switch (input[0]) {
+                            case '+':
+                                std::cout << num1 + num2 << std::endl;
+                                break;
+                            case '-':
+                                std::cout << num1 - num2 << std::endl;
+                                break;
+                            case '*':
+                                std::cout << num1 * num2 << std::endl;
+                                break;
+                            case '/':
+                                std::cout << num1 / num2 << std::endl;
+                                break;
+                            default:
+                                std::cout << "Invalid operation" << std::endl;
+                                break;
+                        }
+                        otherLoop = false;
+                        break;
+                    }
+                    case '2':
+                        break;
+                    case '3':
+                        break;
+                    case 'q':
+                        mainloop = false;
+                        break;
+                    case 'Q':
+                        mainloop = false;
+                        break;
+                    default:
+                        std::cout << "Invalid choice" << std::endl;
+                        break;
+                }
+            }
+            continue;
+        }
+        else {
+            std::cout << "Invalid choice" << std::endl;
+            continue;
         }
     }
 }
