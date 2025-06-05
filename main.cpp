@@ -2,6 +2,7 @@
 #include <gmp.h>
 #include <algorithm>
 #include <gmpxx.h>
+#include <ctime>
 
 void btrim(std::string& s) {
     s.erase(s.begin(), std::find_if(s.begin(), s.end(),
@@ -44,11 +45,8 @@ std::string convert_base(const std::string& number, int from_base, int to_base) 
     if (from_base < 2 || from_base > 62 || to_base < 2 || to_base > 62) {
         throw std::invalid_argument("Base must be between 2 and 62.");
     }
-
-    // GMP can handle bases from 2 to 62
     mpz_class value;
-
-    // Set value from the string using the source base
+    // Set value from the string using the from_base
     if (mpz_set_str(value.get_mpz_t(), number.c_str(), from_base) != 0) {
         throw std::invalid_argument("Invalid number for base " + std::to_string(from_base));
     }
@@ -110,24 +108,45 @@ int main() {
             mpz_invert(d.get_mpz_t(), e.get_mpz_t(), phi.get_mpz_t());
             std::cout << "Public key: (e = " << e << ", n = " << n << ")" << std::endl;
             std::cout << "Private key: (d = " << d << ", n = " << n << std::endl;
-            while (true) {
-                std::cout << "Enter a message to encrypt: ";
+            bool encryptLoop = true;
+            while (encryptLoop) {
+                std::cout << "do you want to encypt an int or a string?" << std::endl;
+                std::cout << "     [1] int" << std::endl;
+                std::cout << "     [2] string" << std::endl;
+                std::cout << "Enter your choice: ";
                 std::getline(std::cin, input);
                 trim(input);
-                if (input.empty()) {
-                    std::cout << "No input, exiting..." << std::endl;
-                    break;
-                }
-                else {
-                    // TODO: inplement input of strings
-                    mpz_class m(input);
-                    mpz_class c;
-                    mpz_powm(c.get_mpz_t(), m.get_mpz_t(), e.get_mpz_t(), n.get_mpz_t());
-                    std::cout << "Encrypted message: " << c << std::endl;
-                    break;
+                switch (input[0]) {
+                    case '1': {
+                        std::cout << "Enter the number: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class m(input);
+                        mpz_class c;
+                        mpz_powm(c.get_mpz_t(), m.get_mpz_t(), e.get_mpz_t(), n.get_mpz_t());
+                        std::cout << "Encrypted message: " << c << std::endl;
+                        encryptLoop = false;
+                        break;
+                    }
+                    case '2': {
+                        std::cout << "Enter the string: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class m(ascii_string_to_mpz(input));
+                        mpz_class c;
+                        mpz_powm(c.get_mpz_t(), m.get_mpz_t(), e.get_mpz_t(), n.get_mpz_t());
+                        std::cout << "Encrypted message: " << c << std::endl;
+                        encryptLoop = false;
+                        break;
+                    }
+                    default: {
+                        std::cout << "Invalid choice" << std::endl;
+                    }
                 }
             }
+            continue;
         }
+
 
         if (seq(input, "c") || seq(input, "crack")) {
 
@@ -176,19 +195,43 @@ int main() {
             mpz_invert(d.get_mpz_t(), e.get_mpz_t(), phi.get_mpz_t());
             std::cout << "Public key: (e = " << e << ", n = " << n << ")" << std::endl;
             std::cout << "Private key: (d = " << d << ", n = " << n << std::endl;
-            while (true) {
-                std::cout << "Enter a message to decrypt: ";
+            bool crackLoop = true;
+            while (crackLoop) {
+                std::cout << "do you want to get the result as an int or a string?" << std::endl;
+                std::cout << "     [1] int" << std::endl;
+                std::cout << "     [2] string" << std::endl;
+                std::cout << "Enter your choice: ";
                 std::getline(std::cin, input);
                 trim(input);
-                mpz_class c(input);
-                mpz_class m;
-                mpz_powm(m.get_mpz_t(), c.get_mpz_t(), d.get_mpz_t(), n.get_mpz_t());
-
-                if (input.empty()) {
-                    break;
+                switch (input[0]) {
+                    case '1': {
+                        std::cout << "Enter the number: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class c(input);
+                        mpz_class m;
+                        mpz_powm(m.get_mpz_t(), c.get_mpz_t(), d.get_mpz_t(), n.get_mpz_t());
+                        std::cout << "Decrypted message: " << m << std::endl;
+                        crackLoop = false;
+                        break;
+                    }
+                    case '2': {
+                        std::cout << "Enter the number: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class c(input);
+                        mpz_class m;
+                        mpz_powm(m.get_mpz_t(), c.get_mpz_t(), d.get_mpz_t(), n.get_mpz_t());
+                        std::cout << "Decrypted message: " << mpz_to_ascii_string(m) << std::endl;
+                        crackLoop = false;
+                        break;
+                    }
+                    default: {
+                        std::cout << "Invalid choice" << std::endl;
+                    }
                 }
             }
-
+            continue;
         }
 
         if (seq(input, "o") || seq(input, "other")) {
@@ -201,6 +244,8 @@ int main() {
                 std::cout << "     [4] String to binary" << std::endl;
                 std::cout << "     [5] Binary to String" << std::endl;
                 std::cout << "     [6] Convert between bases" << std::endl;
+                std::cout << "     [7] Get big Primes" << std::endl;
+                std::cout << "     [8] Get pair of Primes big enough for encrypting a specific message" << std::endl;
                 std::cout << "     [Q] Quit" << std::endl;
                 std::cout << "Enter your choice: ";
                 std::getline(std::cin, input);
@@ -275,9 +320,93 @@ int main() {
                         std::cout << "Converted: " << convert_base(input, from_base, to_base) << std::endl;
                         break;
                     }
+                    case '7': {
+                        std::cout << "Enter the number from where to generate the primes: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class num(input);
+                        std::cout << "The next 10 primes after " << num << " are:";
+                        for (int i = 0; i < 10; i++) {
+                            mpz_nextprime(num.get_mpz_t(), num.get_mpz_t());
+                            std::cout << " " << num;
+                        }
+                        std::cout << std::endl;
+                        break;
+                    }
+                    case '8': {
+                        std::cout << "Do you want to encrypt a string or an int?" << std::endl;
+                        std::cout << "     [1] int" << std::endl;
+                        std::cout << "     [2] string" << std::endl;
+                        std::cout << "Enter your choice: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        switch (input[0]) {
+                            case '1': {
+                                std::cout << "Enter your message: ";
+                                std::getline(std::cin, input);
+                                trim(input);
+                                mpz_class m(input);
+                                gmp_randclass rng(gmp_randinit_default);
+                                rng.seed(static_cast<unsigned long>(time(nullptr)));
+
+                                mpz_class p;
+                                mpz_class q;
+                                mpz_class sqrt_m;
+                                mpz_sqrt(sqrt_m.get_mpz_t(), m.get_mpz_t());
+
+                                mpz_class delta;
+                                mpz_class min_gap = sqrt_m / 20;
+                                mpz_class max_gap = sqrt_m / 7;
+
+                                while (true) {
+                                    mpz_class p_guess = sqrt_m + 1 + rng.get_z_range(sqrt_m);
+                                    mpz_nextprime(p.get_mpz_t(), p_guess.get_mpz_t());
+                                    mpz_class q_min;
+                                    mpz_cdiv_q(q_min.get_mpz_t(), m.get_mpz_t(), p.get_mpz_t());
+                                    mpz_nextprime(q.get_mpz_t(), q_min.get_mpz_t());
+                                    if (p != q) break;
+                                }
+                                std::cout << "prime p = " << p << std::endl;
+                                std::cout << "prime q = " << q << std::endl;
+                                std::cout << "Because " << p << " * " << q << " >= " << m << std::endl;
+                            }
+                            case '2': {
+                                std::cout << "Enter your message: ";
+                                std::getline(std::cin, input);
+                                mpz_class m(ascii_string_to_mpz(input));
+
+                                gmp_randclass rng(gmp_randinit_default);
+                                rng.seed(static_cast<unsigned long>(time(nullptr)));
+
+                                mpz_class p;
+                                mpz_class q;
+                                mpz_class sqrt_m;
+                                mpz_sqrt(sqrt_m.get_mpz_t(), m.get_mpz_t());
+
+                                mpz_class delta;
+                                mpz_class min_gap = sqrt_m / 20;
+                                mpz_class max_gap = sqrt_m / 7;
+
+                                while (true) {
+                                    mpz_class p_guess = sqrt_m + 1 + rng.get_z_range(sqrt_m);
+                                    mpz_nextprime(p.get_mpz_t(), p_guess.get_mpz_t());
+                                    mpz_class q_min;
+                                    mpz_cdiv_q(q_min.get_mpz_t(), m.get_mpz_t(), p.get_mpz_t());
+                                    mpz_nextprime(q.get_mpz_t(), q_min.get_mpz_t());
+                                    if (p != q) break;
+                                }
+                                std::cout << "prime p = " << p << std::endl;
+                                std::cout << "prime q = " << q << std::endl;
+                                std::cout << "Because " << p << " * " << q << " >= " << m << " = " << input << std::endl;
+                            }
+                        }
+                        otherLoop = false;
+                        break;
+                    }
                     case 'q':
                     case 'Q':
                         mainloop = false;
+                        otherLoop = false;
                         break;
                     default:
                         std::cout << "Invalid choice" << std::endl;
