@@ -41,14 +41,28 @@ void factor_thread(mpz_class n, const mpz_class& start, const mpz_class& end) {
     }
 }
 void progress_display(size_t total_primes) {
+    const int barWidth = 50; // Width of the progress bar
     while (!found.load()) {
         uint64_t checked = primes_checked.load();
-        double percent = (double)checked / total_primes * 100.0;
-        std::cout << "\rProgress: " << std::fixed << std::setprecision(2)
-                  << percent << "%    " << std::flush;
+        double progress = static_cast<double>(checked) / total_primes;
+        int pos = static_cast<int>(barWidth * progress);
+
+        std::cout << "\r|";
+        for (int i = 0; i < barWidth; ++i) {
+            if (i <= pos) std::cout << "█";
+            else std::cout << " ";
+        }
+
+        std::cout << "| " << std::fixed << std::setprecision(2)
+                  << (progress * 100.0) << "%    " << std::flush;
+
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
-    std::cout << "\rProgress: 100.00%   " << std::endl;
+
+    // Print complete bar when done
+    std::cout << "\r|";
+    for (int i = 0; i < barWidth; ++i) std::cout << "█";
+    std::cout << "| 100.00%" << std::endl;
 }
 
 void trimStart(std::string& s) {
@@ -78,6 +92,7 @@ std::string mpz_to_ascii_string(const mpz_class& num) {
         result += c;
         temp /= 256;
     }
+    std::reverse(result.begin(), result.end()); // fix order
     return result;
 }
 mpz_class ascii_string_to_mpz(const std::string& str) {
@@ -215,7 +230,7 @@ int main() {
             trim(input);
             std::getline(std::cin, input);
             n = input;
-            clock_t beginning = clock();
+            auto beginning = std::chrono::high_resolution_clock::now();
             std::cout << "Trying to factorize n, this might take a while..." << std::endl;
 
             mpz_class max;
@@ -235,7 +250,6 @@ int main() {
             mpz_class max_minus_2 = max - 2;
             mpz_class chunk_size = max_minus_2 / NUM_THREADS;
 
-
             std::thread progress_thread(progress_display, estimate_total_primes(max));
             std::cout << std::endl;
 
@@ -254,27 +268,27 @@ int main() {
                 return 1;
             }
 
-            std::cout << "Found p and q!" << std::endl;
+            sleep(1);
+            std::cout << "\nFound p and q!" << std::endl;
             std::cout << "p = " << final_p << std::endl;
             std::cout << "q = " << final_q << std::endl;
 
-            clock_t ending = clock();
-            long elapsedTime = (ending - beginning) / CLOCKS_PER_SEC;
-            long elapsedHours = elapsedTime / 3600;
-            long elapsedMinutes = (elapsedTime % 3600) / 60;
-            long elapsedSeconds = elapsedTime % 60;
-            long elapsedMilliseconds = (elapsedTime % 60) * 1000;
+
+            progress_thread.detach();
+            auto ending = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = ending - beginning;
+            long elapsedS = elapsed.count();
+            long elapsedHours = elapsedS / 3600;
+            long elapsedMinutes = (elapsedS % 3600) / 60;
+            long elapsedSeconds = elapsedS % 60;
             if (elapsedHours > 0) {
-                std::cout << "Factorizing n took: " << elapsedHours << " Hours, " << elapsedMinutes << " Minutes, " << elapsedSeconds << " Seconds and " << elapsedMilliseconds << " Milliseconds" << std::endl;
+                std::cout << "Factorizing n took: " << elapsedHours << " Hours, " << elapsedMinutes << " Minutes and " << elapsedSeconds << " Seconds" << std::endl;
             }
             else if (elapsedMinutes > 0) {
-                std::cout << "Factorizing n took: " << elapsedMinutes << " Minutes, " << elapsedSeconds << " Seconds and " << elapsedMilliseconds << " Milliseconds" << std::endl;
-            }
-            else if (elapsedSeconds > 0) {
-                std::cout << "Factorizing n took: " << elapsedSeconds << " Seconds and " << elapsedMilliseconds << " Milliseconds" << std::endl;
+                std::cout << "Factorizing n took: " << elapsedMinutes << " Minutes and " << elapsedSeconds << " Seconds" << std::endl;
             }
             else {
-                std::cout << "Factorizing n took: " << elapsedMilliseconds << " Milliseconds" << std::endl;
+                std::cout << "Factorizing n took: " << elapsedSeconds << " Seconds" << std::endl;
             }
 
             mpz_class phi((final_p-1)*(final_q-1));
@@ -333,6 +347,8 @@ int main() {
                 std::cout << "     [6] Convert between bases" << std::endl;
                 std::cout << "     [7] Get big Primes" << std::endl;
                 std::cout << "     [8] Get pair of Primes big enough for encrypting a specific message" << std::endl;
+                std::cout << "     [9] get Big n for testing" << std::endl;
+                std::cout << "     [B] Back" << std::endl;
                 std::cout << "     [Q] Quit" << std::endl;
                 std::cout << "Enter your choice: ";
                 std::getline(std::cin, input);
@@ -366,7 +382,6 @@ int main() {
                                 std::cout << "Invalid operation" << std::endl;
                                 break;
                         }
-                        otherLoop = false;
                         break;
                     }
                     case '2': {
@@ -415,7 +430,7 @@ int main() {
                         std::cout << "The next 10 primes after " << num << " are:";
                         for (int i = 0; i < 10; i++) {
                             mpz_nextprime(num.get_mpz_t(), num.get_mpz_t());
-                            std::cout << " " << num;
+                            std::cout << "\n     " << num << "\n";
                         }
                         std::cout << std::endl;
                         break;
@@ -487,9 +502,24 @@ int main() {
                                 std::cout << "Because " << p << " * " << q << " >= " << m << " = " << input << std::endl;
                             }
                         }
-                        otherLoop = false;
                         break;
                     }
+                    case '9': {
+                        std::cout << "How big should n be?: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class n(input);
+                        mpz_sqrt(n.get_mpz_t(), n.get_mpz_t());
+                        mpz_nextprime(n.get_mpz_t(), n.get_mpz_t());
+                        mpz_class m(n);
+                        mpz_nextprime(n.get_mpz_t(), n.get_mpz_t());
+                        std::cout << "n = " << n*m << std::endl;
+                        break;
+                    }
+                    case 'b':
+                    case 'B':
+                        otherLoop = false;
+                        break;
                     case 'q':
                     case 'Q':
                         mainloop = false;
