@@ -3,18 +3,65 @@
 #include <algorithm>
 #include <gmpxx.h>
 #include <ctime>
+#include <thread>
+#include <vector>
+#include <cmath>
+#include <iomanip>
 
-void btrim(std::string& s) {
+// Globals for thread communication
+std::atomic<bool> found(false);
+std::mutex result_mutex;
+mpz_class final_p;
+mpz_class final_q;
+std::atomic<uint64_t> primes_checked(0);
+
+void factor_thread(mpz_class n, const mpz_class& start, const mpz_class& end) {
+    mpz_class p;
+    mpz_class q;
+
+    mpz_class start_minus1;
+    start_minus1 = start - 1;
+    mpz_nextprime(p.get_mpz_t(), start_minus1.get_mpz_t());
+
+    while (p <= end && !found.load()) {
+        ++primes_checked;
+        if (mpz_divisible_p(n.get_mpz_t(), p.get_mpz_t())) {
+            q = n / p;
+            if (mpz_probab_prime_p(q.get_mpz_t(), 30) >= 1) {
+                std::lock_guard<std::mutex> lock(result_mutex);
+                if(!found) {
+                    final_p = p;
+                    final_q = q;
+                    found = true;
+                }
+                return;
+            }
+        }
+        mpz_nextprime(p.get_mpz_t(), p.get_mpz_t());
+    }
+}
+void progress_display(size_t total_primes) {
+    while (!found.load()) {
+        uint64_t checked = primes_checked.load();
+        double percent = (double)checked / total_primes * 100.0;
+        std::cout << "\rProgress: " << std::fixed << std::setprecision(2)
+                  << percent << "%    " << std::flush;
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+    std::cout << "\rProgress: 100.00%   " << std::endl;
+}
+
+void trimStart(std::string& s) {
     s.erase(s.begin(), std::find_if(s.begin(), s.end(),
                                     [](unsigned char ch){return !std::isspace(ch);}));
 }
-void etrim(std::string& s) {
+void trimEnd(std::string& s) {
     s.erase(std::find_if(s.rbegin(), s.rend(),
                          [](unsigned char ch) {return !std::isspace(ch);}).base(), s.end());
 }
 void trim(std::string& s) {
-    etrim(s);
-    btrim(s);
+    trimStart(s);
+    trimEnd(s);
 }
 bool seq(const std::string& a, const std::string& b) {
     if (a.size() != b.size()) return false;
@@ -53,6 +100,10 @@ std::string convert_base(const std::string& number, int from_base, int to_base) 
 
     // Convert the value to a string in the target base
     return value.get_str(to_base);
+}
+size_t estimate_total_primes(const mpz_class& max) {
+    double max_d = mpz_get_d(max.get_mpz_t());
+    return static_cast<size_t>(max_d / std::log(max_d));
 }
 
 int main() {
@@ -164,40 +215,76 @@ int main() {
             trim(input);
             std::getline(std::cin, input);
             n = input;
-            std::cout << "Trying to facorize n, this might take a while..." << std::endl;
+            clock_t beginning = clock();
+            std::cout << "Trying to factorize n, this might take a while..." << std::endl;
 
-
-            // TODO: multithread this
-            //factorize n
-            mpz_class p("2");
-            mpz_class q("2");
             mpz_class max;
-            mpz_class next;
-            mpz_class nmod(n);
             mpz_sqrt(max.get_mpz_t(), n.get_mpz_t());
-            while (p<=max){
-                //try to find q
-                if (mpz_divisible_p(n.get_mpz_t(), p.get_mpz_t()))  {
-                    q = n/p;
-                    if (mpz_probab_prime_p(q.get_mpz_t(), 30)==1||mpz_probab_prime_p(q.get_mpz_t(), 30)==2) {
-                        std::cout << "Found p and q!" << std::endl;
-                        std::cout << "p = " << p << std::endl;
-                        std::cout << "q = " << q << std::endl;
-                        break;
-                    }
-                }
-                //get next prime
-                mpz_nextprime(next.get_mpz_t(), p.get_mpz_t());
-                p = next;
+
+            unsigned int NUM_THREADS = std::thread::hardware_concurrency();
+            if (NUM_THREADS == 0) {
+                NUM_THREADS = 4;
+                std::cout << "couldn't detect amount of threads, using 4 instead" << std::endl;
             }
-            mpz_class phi((p-1)*(q-1));
+            else
+                std::cout << "detected " << NUM_THREADS << " threads" << std::endl;
+            std::vector<std::thread> threads;
+            mpz_class current("2");
+            mpz_class range_step;
+
+            mpz_class max_minus_2 = max - 2;
+            mpz_class chunk_size = max_minus_2 / NUM_THREADS;
+
+
+            std::thread progress_thread(progress_display, estimate_total_primes(max));
+            std::cout << std::endl;
+
+            // Launch Threads
+            for (int i = 0; i < NUM_THREADS; i++) {
+                mpz_class start = 2 + i * chunk_size;
+                mpz_class end = (i==NUM_THREADS-1) ? max : start + chunk_size;
+
+                threads.emplace_back(factor_thread, n, start, end);
+            }
+
+            for (auto& t: threads) t.join();
+
+            if (!found) {
+                std::cout << "failed to factorize n" << std::endl;
+                return 1;
+            }
+
+            std::cout << "Found p and q!" << std::endl;
+            std::cout << "p = " << final_p << std::endl;
+            std::cout << "q = " << final_q << std::endl;
+
+            clock_t ending = clock();
+            long elapsedTime = (ending - beginning) / CLOCKS_PER_SEC;
+            long elapsedHours = elapsedTime / 3600;
+            long elapsedMinutes = (elapsedTime % 3600) / 60;
+            long elapsedSeconds = elapsedTime % 60;
+            long elapsedMilliseconds = (elapsedTime % 60) * 1000;
+            if (elapsedHours > 0) {
+                std::cout << "Factorizing n took: " << elapsedHours << " Hours, " << elapsedMinutes << " Minutes, " << elapsedSeconds << " Seconds and " << elapsedMilliseconds << " Milliseconds" << std::endl;
+            }
+            else if (elapsedMinutes > 0) {
+                std::cout << "Factorizing n took: " << elapsedMinutes << " Minutes, " << elapsedSeconds << " Seconds and " << elapsedMilliseconds << " Milliseconds" << std::endl;
+            }
+            else if (elapsedSeconds > 0) {
+                std::cout << "Factorizing n took: " << elapsedSeconds << " Seconds and " << elapsedMilliseconds << " Milliseconds" << std::endl;
+            }
+            else {
+                std::cout << "Factorizing n took: " << elapsedMilliseconds << " Milliseconds" << std::endl;
+            }
+
+            mpz_class phi((final_p-1)*(final_q-1));
             mpz_class d;
             mpz_invert(d.get_mpz_t(), e.get_mpz_t(), phi.get_mpz_t());
             std::cout << "Public key: (e = " << e << ", n = " << n << ")" << std::endl;
             std::cout << "Private key: (d = " << d << ", n = " << n << std::endl;
             bool crackLoop = true;
             while (crackLoop) {
-                std::cout << "do you want to get the result as an int or a string?" << std::endl;
+                std::cout << "Do you want to get the decoded message as an int or a string?" << std::endl;
                 std::cout << "     [1] int" << std::endl;
                 std::cout << "     [2] string" << std::endl;
                 std::cout << "Enter your choice: ";
@@ -205,7 +292,7 @@ int main() {
                 trim(input);
                 switch (input[0]) {
                     case '1': {
-                        std::cout << "Enter the number: ";
+                        std::cout << "Enter the encrypted message: ";
                         std::getline(std::cin, input);
                         trim(input);
                         mpz_class c(input);
@@ -216,7 +303,7 @@ int main() {
                         break;
                     }
                     case '2': {
-                        std::cout << "Enter the number: ";
+                        std::cout << "Enter the encrypted message: ";
                         std::getline(std::cin, input);
                         trim(input);
                         mpz_class c(input);
