@@ -27,7 +27,7 @@ std::string mpz_to_ascii_string(const mpz_class& num) {
     mpz_class temp = num;
     while (temp > 0) {
         char c = static_cast<char>(mpz_class(temp % 256).get_ui());
-        result = c + result;
+        result += c;
         temp /= 256;
     }
     return result;
@@ -57,7 +57,7 @@ std::string convert_base(const std::string& number, int from_base, int to_base) 
     return value.get_str(to_base);
 }
 
-int main(int argc, char* argv[]) {
+int main() {
     std::string input;
     std::cout << "/!\\ this might take a while..." << std::endl;
     bool mainloop = true;
@@ -82,8 +82,6 @@ int main(int argc, char* argv[]) {
                 std::getline(std::cin, input);
                 trim(input);
                 p = input;
-                // Wrong usage of method
-                //TODO: fix
                 if (mpz_probab_prime_p(p.get_mpz_t(), 30)==1||mpz_probab_prime_p(p.get_mpz_t(), 30)==2) {
                     p=input;
                     break;
@@ -98,8 +96,6 @@ int main(int argc, char* argv[]) {
                 std::getline(std::cin, input);
                 trim(input);
                 q = input;
-                // Wrong usage of method
-                // TODO:fix
                 if (mpz_probab_prime_p(q.get_mpz_t(), 30)==1||mpz_probab_prime_p(q.get_mpz_t(), 30)==2) {
                     q=input;
                     break;
@@ -211,11 +207,11 @@ int main(int argc, char* argv[]) {
                 trim(input);
                 switch (input[0]) {
                     case '1': {
-                        std::cout << "Enter num1: ";
+                        std::cout << "Enter the 1. Number: ";
                         std::getline(std::cin, input);
                         trim(input);
                         mpz_class num1(input);
-                        std::cout << "Enter num2: ";
+                        std::cout << "Enter the 2. Number: ";
                         std::getline(std::cin, input);
                         mpz_class num2(input);
                         std::cout << "Choose an operation (+, -, *, /): ";
@@ -280,8 +276,6 @@ int main(int argc, char* argv[]) {
                         break;
                     }
                     case 'q':
-                        mainloop = false;
-                        break;
                     case 'Q':
                         mainloop = false;
                         break;
