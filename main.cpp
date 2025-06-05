@@ -22,6 +22,40 @@ bool seq(const std::string& a, const std::string& b) {
                std::tolower(static_cast<unsigned char>(b_char));
     });
 }
+std::string mpz_to_ascii_string(const mpz_class& num) {
+    std::string result;
+    mpz_class temp = num;
+    while (temp > 0) {
+        char c = static_cast<char>(mpz_class(temp % 256).get_ui());
+        result = c + result;
+        temp /= 256;
+    }
+    return result;
+}
+mpz_class ascii_string_to_mpz(const std::string& str) {
+    mpz_class result = 0;
+    for (char c : str) {
+        result *= 256;
+        result += static_cast<unsigned char>(c);
+    }
+    return result;
+}
+std::string convert_base(const std::string& number, int from_base, int to_base) {
+    if (from_base < 2 || from_base > 62 || to_base < 2 || to_base > 62) {
+        throw std::invalid_argument("Base must be between 2 and 62.");
+    }
+
+    // GMP can handle bases from 2 to 62
+    mpz_class value;
+
+    // Set value from the string using the source base
+    if (mpz_set_str(value.get_mpz_t(), number.c_str(), from_base) != 0) {
+        throw std::invalid_argument("Invalid number for base " + std::to_string(from_base));
+    }
+
+    // Convert the value to a string in the target base
+    return value.get_str(to_base);
+}
 
 int main(int argc, char* argv[]) {
     std::string input;
@@ -168,6 +202,9 @@ int main(int argc, char* argv[]) {
                 std::cout << "     [1] Big number calculator" << std::endl;
                 std::cout << "     [2] String to int (ASCII)" << std::endl;
                 std::cout << "     [3] int (ASCII) to String" << std::endl;
+                std::cout << "     [4] String to binary" << std::endl;
+                std::cout << "     [5] Binary to String" << std::endl;
+                std::cout << "     [6] Convert between bases" << std::endl;
                 std::cout << "     [Q] Quit" << std::endl;
                 std::cout << "Enter your choice: ";
                 std::getline(std::cin, input);
@@ -204,10 +241,44 @@ int main(int argc, char* argv[]) {
                         otherLoop = false;
                         break;
                     }
-                    case '2':
+                    case '2': {
+                        std::cout << "Enter a string: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        std::cout << "ASCII: " << ascii_string_to_mpz(input) << std::endl;
                         break;
-                    case '3':
+                    }
+                    case '3': {
+                        std::cout << "Enter an int: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class num(input);
+                        std::cout << "String: " << mpz_to_ascii_string(num) << std::endl;
                         break;
+                    }
+
+                    case '6': {
+                        std::cout << "Useful Bases: " << std::endl;
+                        std::cout << "     [2] Binary" << std::endl;
+                        std::cout << "     [8] Octal" << std::endl;
+                        std::cout << "     [10] Decimal" << std::endl;
+                        std::cout << "     [16] Hexadecimal" << std::endl;
+                        std::cout << "     [36] Base 36 (0-z)" << std::endl;
+                        std::cout << "     [62] Base 62 (0-Z)" << std::endl;
+                        std::cout << "Enter the base of the input(2-62): ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        int from_base = std::stoi(input);
+                        std::cout << "Enter the base of the output(2-62): ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        int to_base = std::stoi(input);
+                        std::cout << "Enter the number: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        std::cout << "Converted: " << convert_base(input, from_base, to_base) << std::endl;
+                        break;
+                    }
                     case 'q':
                         mainloop = false;
                         break;
