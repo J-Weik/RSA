@@ -84,6 +84,32 @@ bool seq(const std::string& a, const std::string& b) {
                std::tolower(static_cast<unsigned char>(b_char));
     });
 }
+mpz_class next_palindrome(const mpz_class& n) {
+    std::string s = n.get_str();
+    int len = s.length();
+    std::string left = s.substr(0, (len + 1) / 2);
+    std::string mirrored = left;
+    if (len % 2 == 0)
+        mirrored += std::string(left.rbegin(), left.rend());
+    else
+        mirrored += std::string(left.rbegin() + 1, left.rend());
+
+    mpz_class pal(mirrored);
+
+    if (pal > n)
+        return pal;
+    mpz_class left_num(left);
+    left_num += 1;
+    left = left_num.get_str();
+
+    std::string new_pal = left;
+    if (len % 2 == 0)
+        new_pal += std::string(left.rbegin(), left.rend());
+    else
+        new_pal += std::string(left.rbegin() + 1, left.rend());
+
+    return mpz_class(new_pal);
+}
 std::string mpz_to_ascii_string(const mpz_class& num) {
     std::string result;
     mpz_class temp = num;
@@ -252,6 +278,7 @@ int main() {
 
             std::thread progress_thread(progress_display, estimate_total_primes(max));
             std::cout << std::endl;
+            found = false;
 
             // Launch Threads
             for (int i = 0; i < NUM_THREADS; i++) {
@@ -348,6 +375,8 @@ int main() {
                 std::cout << "     [7] Get big Primes" << std::endl;
                 std::cout << "     [8] Get pair of Primes big enough for encrypting a specific message" << std::endl;
                 std::cout << "     [9] get Big n for testing" << std::endl;
+                std::cout << "     [D] find big dehedral Prime" << std::endl;
+                std::cout << "     [P] check if number is Prime with high certainty" << std::endl;
                 std::cout << "     [B] Back" << std::endl;
                 std::cout << "     [Q] Quit" << std::endl;
                 std::cout << "Enter your choice: ";
@@ -514,6 +543,38 @@ int main() {
                         mpz_class m(n);
                         mpz_nextprime(n.get_mpz_t(), n.get_mpz_t());
                         std::cout << "n = " << n*m << std::endl;
+                        break;
+                    }
+                    case 'd':
+                    case 'D': {
+                        std::cout << "how big should the prime be at least?: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class n(input);
+
+                        mpz_class candidate(n);
+
+                        while (true) {
+                            candidate = next_palindrome(candidate);
+                            if(mpz_probab_prime_p(candidate.get_mpz_t(), 100)) {
+                                std::cout << "Found prime: " << candidate << std::endl;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                    case 'p':
+                    case 'P': {
+                        std::cout << "Enter Number: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class n(input);
+                        if (mpz_probab_prime_p(n.get_mpz_t(), 1000) > 0) {
+                            std::cout << "Number is prime" << std::endl;
+                        }
+                        else {
+                            std::cout << "Number is not prime" << std::endl;
+                        }
                         break;
                     }
                     case 'b':
