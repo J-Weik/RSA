@@ -240,6 +240,56 @@ int main() {
         }
 
 
+        if (input == "l") {
+            //set e
+            mpz_class e("65537");
+            std::cout << "Choose an exponent e (65537 if empty): ";
+            std::getline(std::cin, input);
+            trim(input);
+            if (!seq(input, "")) e=input;
+            else std::cout << "No input, defaulting to 65537..." << std::endl;
+
+            // set n
+            mpz_class n;
+            std::cout << "Enter n from the public key: ";
+            trim(input);
+            std::getline(std::cin, input);
+            n = input;
+            auto beginning = std::chrono::high_resolution_clock::now();
+            std::cout << "Trying to factorize n, this might take a while..." << std::endl;
+
+            // calculate k (the skalar for the point multiplication)
+            mpz_class B(); // upper Bound for calculating k (Choose k dependent on n)
+            mpz_class k(); // k for scalar-multiplication
+            // k = \prod_p^B (p)^(round-down to next int(log_p(B))) wobei p stets prim
+            for (mpz_class p = 2; p <= B; )
+
+            bool whi = true;
+            while (whi) {
+                mpz_class x_0;
+                mpz_class y_0;
+                mpz_class x;
+                mpz_class y;
+                mpz_class a;
+
+                //create state t for calling random functions and initialize it with a seed and state
+                gmp_randstate_t state;
+                gmp_randinit_default(state);
+                mpz_class seed;
+                mpz_init_set_ui(seed.get_mpz_t(), time(nullptr));
+
+                // set x_0, y_0 and a to random numbers in the ring
+                mpz_urandomm(x_0.get_mpz_t(), state, n.get_mpz_t());
+                mpz_urandomm(y_0.get_mpz_t(), state, n.get_mpz_t());
+                mpz_urandomm(a.get_mpz_t(), state, n.get_mpz_t());
+                x = x_0;
+                y = y_0;
+
+                mpz_class b(y^2 - x^3 - a * x); // calculate b
+                mpz_mod(b.get_mpz_t(), b.get_mpz_t(), n.get_mpz_t()); // put b in boundary of n
+            }
+        }
+
         if (seq(input, "c") || seq(input, "crack")) {
 
             //set e
@@ -258,7 +308,7 @@ int main() {
             n = input;
             auto beginning = std::chrono::high_resolution_clock::now();
             std::cout << "Trying to factorize n, this might take a while..." << std::endl;
-
+            // TODO: IMPLEMENT ELLIPTIC CURVE PRIME FACTORISATION METHOD
             mpz_class max;
             mpz_sqrt(max.get_mpz_t(), n.get_mpz_t());
 
@@ -295,11 +345,10 @@ int main() {
                 return 1;
             }
 
-            sleep(1);
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
             std::cout << "\nFound p and q!" << std::endl;
             std::cout << "p = " << final_p << std::endl;
             std::cout << "q = " << final_q << std::endl;
-
 
             progress_thread.detach();
             auto ending = std::chrono::high_resolution_clock::now();
