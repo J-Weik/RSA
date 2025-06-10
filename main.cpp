@@ -8,6 +8,8 @@
 #include <cmath>
 #include <iomanip>
 
+//Chooseable prime: 100200300400500600700800900000000009008007006005004003002051
+
 // Globals for thread communication
 std::atomic<bool> found(false);
 std::mutex result_mutex;
@@ -147,6 +149,11 @@ size_t estimate_total_primes(const mpz_class& max) {
     return static_cast<size_t>(max_d / std::log(max_d));
 }
 
+struct ECPoint {
+    mpz_class x, y;
+    bool at_infinity;
+};
+
 int main() {
     std::string input;
     std::cout << "/!\\ this might take a while..." << std::endl;
@@ -259,13 +266,20 @@ int main() {
             std::cout << "Trying to factorize n, this might take a while..." << std::endl;
 
             // calculate k (the skalar for the point multiplication)
-            mpz_class B(); // upper Bound for calculating k (Choose k dependent on n)
-            mpz_class k(); // k for scalar-multiplication
-            // k = \prod_p^B (p)^(round-down to next int(log_p(B))) wobei p stets prim
-            for (mpz_class p = 2; p <= B; )
 
-            bool whi = true;
-            while (whi) {
+            mpz_class B(3000000);
+            mpz_class B2(150000000);
+
+            mpz_class k(1);
+            // k = \prod_p^B (p)^(round-down to next int(log_p(B))) wobei p stets prim
+            for (mpz_class p = 2; p <= B; mpz_nextprime(p.get_mpz_t(), p.get_mpz_t())) {
+                mpz_class max_pow = 1;
+                while (max_pow * p <= B) max_pow *= p;
+                mpz_lcm(k.get_mpz_t(), k.get_mpz_t(), max_pow.get_mpz_t());
+            }
+
+
+            while(true) {
                 mpz_class x_0;
                 mpz_class y_0;
                 mpz_class x;
@@ -287,6 +301,8 @@ int main() {
 
                 mpz_class b(y^2 - x^3 - a * x); // calculate b
                 mpz_mod(b.get_mpz_t(), b.get_mpz_t(), n.get_mpz_t()); // put b in boundary of n
+
+                ECPoint P = { x_0, y_0, false };
             }
         }
 
