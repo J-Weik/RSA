@@ -319,7 +319,7 @@ int main() {
                 if (gcd != 1) {
                     std::cout << "GCD: " << gcd << std::endl;
                 }
-                std::cout << "Kurve Nr. " << curveAmount << "mit Parametern: A= " << A << ", x_0= " << x_0 << ", result.Z= " << result.Z std::endl;
+                std::cout << "Kurve Nr. " << curveAmount << "mit Parametern: A= " << A << ", x_0= " << x_0 << ", result.Z= " << result.Z << std::endl;
                 std::cout << "A ist " << A << std::endl;
                 std::cout << "x_0: " << x_0 << std::endl;
                 std::cout << "result.Z: " << result.Z << std::endl;
