@@ -11,7 +11,7 @@
 
 #include "MontgomeryCurve.h"
 
-//Chooseable prime: 100200300400500600700800900000000009008007006005004003002051
+//Choose-able prime: 100200300400500600700800900000000009008007006005004003002051
 
 // Globals for thread communication
 std::atomic<bool> found(false);
@@ -22,16 +22,14 @@ std::atomic<uint64_t> primes_checked(0);
 
 void factor_thread(mpz_class n, const mpz_class& start, const mpz_class& end) {
     mpz_class p;
-    mpz_class q;
 
-    mpz_class start_minus1;
-    start_minus1 = start - 1;
+    mpz_class start_minus1 = start - 1;
     mpz_nextprime(p.get_mpz_t(), start_minus1.get_mpz_t());
 
     while (p <= end && !found.load()) {
         ++primes_checked;
         if (mpz_divisible_p(n.get_mpz_t(), p.get_mpz_t())) {
-            q = n / p;
+            mpz_class q = n / p;
             if (mpz_probab_prime_p(q.get_mpz_t(), 30) >= 1) {
                 std::lock_guard<std::mutex> lock(result_mutex);
                 if(!found) {
@@ -45,11 +43,11 @@ void factor_thread(mpz_class n, const mpz_class& start, const mpz_class& end) {
         mpz_nextprime(p.get_mpz_t(), p.get_mpz_t());
     }
 }
-void progress_display(size_t total_primes) {
-    const int barWidth = 50; // Width of the progress bar
+void progress_display(const size_t total_primes) {
+    constexpr int barWidth = 50; // Width of the progress bar
     while (!found.load()) {
         uint64_t checked = primes_checked.load();
-        double progress = static_cast<double>(checked) / total_primes;
+        double progress = static_cast<double>(checked) / static_cast<double>(total_primes);
         int pos = static_cast<int>(barWidth * progress);
 
         std::cout << "\r|";
@@ -71,8 +69,8 @@ void progress_display(size_t total_primes) {
 }
 
 void trimStart(std::string& s) {
-    s.erase(s.begin(), std::find_if(s.begin(), s.end(),
-                                    [](unsigned char ch){return !std::isspace(ch);}));
+    s.erase(s.begin(), std::ranges::find_if(s,
+                                            [](unsigned char ch){return !std::isspace(ch);}));
 }
 void trimEnd(std::string& s) {
     s.erase(std::find_if(s.rbegin(), s.rend(),
@@ -91,7 +89,7 @@ bool seq(const std::string& a, const std::string& b) {
 }
 mpz_class next_palindrome(const mpz_class& n) {
     std::string s = n.get_str();
-    int len = s.length();
+    const int len = static_cast<int>(s.length());
     std::string left = s.substr(0, (len + 1) / 2);
     std::string mirrored = left;
     if (len % 2 == 0)
@@ -123,7 +121,7 @@ std::string mpz_to_ascii_string(const mpz_class& num) {
         result += c;
         temp /= 256;
     }
-    std::reverse(result.begin(), result.end()); // fix order
+    std::ranges::reverse(result); // fix order
     return result;
 }
 mpz_class ascii_string_to_mpz(const std::string& str) {
@@ -157,7 +155,7 @@ int main() {
     std::cout << "/!\\ this might take a while..." << std::endl;
     bool mainloop = true;
     while (mainloop) {
-        std::cout << "[E]ncode, [C]rack or [O]ther?: ";
+        std::cout << "[E]ncode, [C]rack, [L]Elliptic Curve Cracking or [O]ther?: ";
         std::getline(std::cin, input);
         trim(input);
         if (seq(input, "e") || seq(input, "encode"))  {
@@ -207,7 +205,7 @@ int main() {
             std::cout << "Private key: (d = " << d << ", n = " << n << std::endl;
             bool encryptLoop = true;
             while (encryptLoop) {
-                std::cout << "do you want to encypt an int or a string?" << std::endl;
+                std::cout << "do you want to encrypt an int or a string?" << std::endl;
                 std::cout << "     [1] int" << std::endl;
                 std::cout << "     [2] string" << std::endl;
                 std::cout << "Enter your choice: ";
@@ -245,7 +243,7 @@ int main() {
         }
 
 
-        if (input == "l") {
+        if (seq(input, "l") || seq(input, "elliptic")) {
             //set e
             mpz_class e("65537");
             std::cout << "Choose an exponent e (65537 if empty): ";
@@ -260,7 +258,6 @@ int main() {
             trim(input);
             std::getline(std::cin, input);
             n = input;
-            auto beginning = std::chrono::high_resolution_clock::now();
             std::cout << "Trying to factorize n, this might take a while..." << std::endl;
 
             // calculate k (the skalar for the point multiplication)
@@ -286,8 +283,6 @@ int main() {
                 mpz_lcm(k_B2.get_mpz_t(), k_B2.get_mpz_t(), max_pow.get_mpz_t());
             }
 
-
-
             int curveAmount = 0;
             std::cout << "k_B1: " << k_B1 << std::endl;
 
@@ -296,8 +291,11 @@ int main() {
             gmp_randinit_default(state);
             mpz_class seed;
             mpz_init_set_ui(seed.get_mpz_t(), std::random_device()());
+            auto curveBeginning = std::chrono::high_resolution_clock::now();
+            mpz_class p;
+            mpz_class q;
             while(true) {
-                // TODO litterally everything but with montgomery curves
+                // TODO Multithread and implement Phase 2
                 // variables needed to define Montgomery Curve
                 curveAmount++;
                 mpz_class A(1);
@@ -326,8 +324,8 @@ int main() {
 
                 if (gcd != 1 && gcd != n) {
                     std::cout << "Faktoren p und q gefunden!: " << gcd << std::endl;
-                    mpz_class p = gcd;
-                    mpz_class q = n / p;
+                    p = gcd;
+                    q = n / p;
                     std::cout << "Faktor p: " << p << std::endl;
                     std::cout << "Faktor q: " << q << std::endl;
                     if (p*q!=n) std::cout << "Faktor p and q does not equal n" << std::endl;
@@ -340,6 +338,58 @@ int main() {
                 }
                     std::cout << "Kein Faktor gefunden, gehe Zu nächster Kurve!" << std::endl;
             }
+            auto curveEnding = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> CurveElapsed = curveEnding - curveBeginning;
+            long elapsedS = static_cast<long>(CurveElapsed.count());
+            long elapsedHours = elapsedS / 3600;
+            long elapsedMinutes = (elapsedS % 3600) / 60;
+            long elapsedSeconds = elapsedS % 60;
+            if (elapsedHours > 0) std::cout << "Factorizing n took: " << elapsedHours << " Hours, " << elapsedMinutes << " Minutes and " << elapsedSeconds << " Seconds" << std::endl;
+            else if (elapsedMinutes > 0) std::cout << "Factorizing n took: " << elapsedMinutes << " Minutes and " << elapsedSeconds << " Seconds" << std::endl;
+            else std::cout << "Factorizing n took: " << elapsedSeconds << " Seconds" << std::endl;
+
+            mpz_class phi((p-1)*(q-1));
+            mpz_class d;
+            mpz_invert(d.get_mpz_t(), e.get_mpz_t(), phi.get_mpz_t());
+            std::cout << "Public key: (e = " << e << ", n = " << n << ")" << std::endl;
+            std::cout << "Private key: (d = " << d << ", n = " << n << std::endl;
+            bool crackLoop = true;
+            while (crackLoop) {
+                std::cout << "Do you want to get the decoded message as an int or a string?" << std::endl;
+                std::cout << "     [1] int" << std::endl;
+                std::cout << "     [2] string" << std::endl;
+                std::cout << "Enter your choice: ";
+                std::getline(std::cin, input);
+                trim(input);
+                switch (input[0]) {
+                    case '1': {
+                        std::cout << "Enter the encrypted message: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class c(input);
+                        mpz_class m;
+                        mpz_powm(m.get_mpz_t(), c.get_mpz_t(), d.get_mpz_t(), n.get_mpz_t());
+                        std::cout << "Decrypted message: " << m << std::endl;
+                        crackLoop = false;
+                        break;
+                    }
+                    case '2': {
+                        std::cout << "Enter the encrypted message: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class c(input);
+                        mpz_class m;
+                        mpz_powm(m.get_mpz_t(), c.get_mpz_t(), d.get_mpz_t(), n.get_mpz_t());
+                        std::cout << "Decrypted message: " << mpz_to_ascii_string(m) << std::endl;
+                        crackLoop = false;
+                        break;
+                    }
+                    default: {
+                        std::cout << "Invalid choice" << std::endl;
+                    }
+                }
+            }
+            continue;
         }
 
         if (seq(input, "c") || seq(input, "crack")) {
@@ -360,7 +410,6 @@ int main() {
             n = input;
             auto beginning = std::chrono::high_resolution_clock::now();
             std::cout << "Trying to factorize n, this might take a while..." << std::endl;
-            // TODO: IMPLEMENT ELLIPTIC CURVE PRIME FACTORISATION METHOD
             mpz_class max;
             mpz_sqrt(max.get_mpz_t(), n.get_mpz_t());
 
@@ -405,19 +454,13 @@ int main() {
             progress_thread.detach();
             auto ending = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = ending - beginning;
-            long elapsedS = elapsed.count();
+            long elapsedS = static_cast<long>(elapsed.count());
             long elapsedHours = elapsedS / 3600;
             long elapsedMinutes = (elapsedS % 3600) / 60;
             long elapsedSeconds = elapsedS % 60;
-            if (elapsedHours > 0) {
-                std::cout << "Factorizing n took: " << elapsedHours << " Hours, " << elapsedMinutes << " Minutes and " << elapsedSeconds << " Seconds" << std::endl;
-            }
-            else if (elapsedMinutes > 0) {
-                std::cout << "Factorizing n took: " << elapsedMinutes << " Minutes and " << elapsedSeconds << " Seconds" << std::endl;
-            }
-            else {
-                std::cout << "Factorizing n took: " << elapsedSeconds << " Seconds" << std::endl;
-            }
+            if (elapsedHours > 0) std::cout << "Factorizing n took: " << elapsedHours << " Hours, " << elapsedMinutes << " Minutes and " << elapsedSeconds << " Seconds" << std::endl;
+            else if (elapsedMinutes > 0) std::cout << "Factorizing n took: " << elapsedMinutes << " Minutes and " << elapsedSeconds << " Seconds" << std::endl;
+            else std::cout << "Factorizing n took: " << elapsedSeconds << " Seconds" << std::endl;
 
             mpz_class phi((final_p-1)*(final_q-1));
             mpz_class d;
@@ -476,7 +519,7 @@ int main() {
                 std::cout << "     [7] Get big Primes" << std::endl;
                 std::cout << "     [8] Get pair of Primes big enough for encrypting a specific message" << std::endl;
                 std::cout << "     [9] get Big n for testing" << std::endl;
-                std::cout << "     [D] find big dehedral Prime" << std::endl;
+                std::cout << "     [D] find big dihedral Prime" << std::endl;
                 std::cout << "     [P] check if number is Prime with high certainty" << std::endl;
                 std::cout << "     [B] Back" << std::endl;
                 std::cout << "     [Q] Quit" << std::endl;
@@ -631,6 +674,7 @@ int main() {
                                 std::cout << "prime q = " << q << std::endl;
                                 std::cout << "Because " << p << " * " << q << " >= " << m << " = " << input << std::endl;
                             }
+                            default: std::cout << "Enter a valid choice" << std::endl;
                         }
                         break;
                     }
