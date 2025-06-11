@@ -262,24 +262,38 @@ int main() {
 
             // calculate k (the skalar for the point multiplication)
 
-            std::cout << "Enter B1: ";
-            std::getline(std::cin, input);
-            trim(input);
+            // get B1 based on size of n
+            unsigned long long B1;
+            unsigned long long sizeN = mpz_sizeinbase(n.get_mpz_t(),2);
+            if (sizeN <= 0) return -100;
+            if (sizeN >= 100) B1 = 43000000;
+            else if (sizeN >= 90) B1 = 11000000;
+            else if (sizeN >= 80)  B1 = 3000000;
+            else if (sizeN >= 70)  B1 = 1000000;
+            else if (sizeN >= 60)  B1 = 250000;
+            else if (sizeN >= 50)  B1 = 50000;
+            else if (sizeN >= 40)  B1 = 11000;
+            else if (sizeN >= 30)  B1 = 2000;
+            else if (sizeN >= 20)  B1 = 500;
+            else if (sizeN >= 10)  B1 = 100;
+            else B1 = 50;
+            unsigned long long B2(50 * B1);
+            std::cout << "Based on n chose B1 to be: " << B1 << std::endl;
 
-            mpz_class B1(input);
-            mpz_class B2(50 * B1);
 
             mpz_class k_B1(1);
             mpz_class k_B2(1);
             // k = \prod_p^B (p)^(round-down to next int(log_p(B))) wobei p stets prim
-            for (mpz_class p = 2; p <= B1; mpz_nextprime(p.get_mpz_t(), p.get_mpz_t())) {
-                mpz_class max_pow = 1;
-                while (max_pow * p <= B1) max_pow *= p;
+            for (mpz_class p = 2; p.get_d() <= static_cast<double>(B1); mpz_nextprime(p.get_mpz_t(), p.get_mpz_t())) {
+                double exponent = std::floor(std::log(B1)/std::log(p.get_d()));
+                mpz_class max_pow;
+                mpz_pow_ui(max_pow.get_mpz_t(), p.get_mpz_t(), static_cast<unsigned long long>(exponent));
                 mpz_lcm(k_B1.get_mpz_t(), k_B1.get_mpz_t(), max_pow.get_mpz_t());
             }
-            for (mpz_class p = 2; p <= B2; mpz_nextprime(p.get_mpz_t(), p.get_mpz_t())) {
-                mpz_class max_pow = 1;
-                while (max_pow * p <= B2) max_pow *= p;
+            for (mpz_class p = 2; p.get_d() <= static_cast<double>(B2); mpz_nextprime(p.get_mpz_t(), p.get_mpz_t())) {
+                double exponent = std::floor(std::log(B2)/std::log(p.get_d()));
+                mpz_class max_pow;
+                mpz_pow_ui(max_pow.get_mpz_t(), p.get_mpz_t(), static_cast<unsigned long long>(exponent));
                 mpz_lcm(k_B2.get_mpz_t(), k_B2.get_mpz_t(), max_pow.get_mpz_t());
             }
 
@@ -314,29 +328,21 @@ int main() {
                 mpz_class gcd;
                 mpz_gcd(gcd.get_mpz_t(), result.Z.get_mpz_t(), n.get_mpz_t());
 
-                if (gcd != 1) {
-                    std::cout << "GCD: " << gcd << std::endl;
-                }
-                std::cout << "Kurve Nr. " << curveAmount << "mit Parametern: A= " << A << ", x_0= " << x_0 << ", result.Z= " << result.Z << std::endl;
-                std::cout << "A ist " << A << std::endl;
-                std::cout << "x_0: " << x_0 << std::endl;
-                std::cout << "result.Z: " << result.Z << std::endl;
-
                 if (gcd != 1 && gcd != n) {
-                    std::cout << "Faktoren p und q gefunden!: " << gcd << std::endl;
+                    std::cout << "It took " << curveAmount << " curves to find p and q!" << std::endl;
+                    std::cout << "\nFactors p und q found!:" << std::endl;
                     p = gcd;
                     q = n / p;
-                    std::cout << "Faktor p: " << p << std::endl;
-                    std::cout << "Faktor q: " << q << std::endl;
-                    if (p*q!=n) std::cout << "Faktor p and q does not equal n" << std::endl;
-                    if (mpz_probab_prime_p(q.get_mpz_t(), 10000)>0) std::cout << "Faktor p ist prim!" << std::endl;
-                    else std::cout << "Faktor q ist nicht prim!" << std::endl;
-                    if (mpz_probab_prime_p(q.get_mpz_t(), 10000)>0) std::cout << "Faktor q ist prim!" << std::endl;
-                    else std::cout << "Faktor q ist nicht prim!" << std::endl;
-                    std::cout << "Wasser ist nass!" << std::endl;
+                    std::cout << "Factor p: " << p << std::endl;
+                    std::cout << "Factor q: " << q << std::endl;
+                    if (p*q!=n) std::cout << "p * q does not equal n" << std::endl;
+                    if (mpz_probab_prime_p(q.get_mpz_t(), 10000)>0) std::cout << "Faktor p is prime!" << std::endl;
+                    else std::cout << "Factor q is not prime!" << std::endl;
+                    if (mpz_probab_prime_p(q.get_mpz_t(), 10000)>0) std::cout << "Factor q is prime!" << std::endl;
+                    else std::cout << "Factor q ist not prime!" << std::endl;
+                    std::cout << "Water is wet!" << std::endl;
                     break;
                 }
-                    std::cout << "Kein Faktor gefunden, gehe Zu nächster Kurve!" << std::endl;
             }
             auto curveEnding = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> CurveElapsed = curveEnding - curveBeginning;
@@ -352,7 +358,7 @@ int main() {
             mpz_class d;
             mpz_invert(d.get_mpz_t(), e.get_mpz_t(), phi.get_mpz_t());
             std::cout << "Public key: (e = " << e << ", n = " << n << ")" << std::endl;
-            std::cout << "Private key: (d = " << d << ", n = " << n << std::endl;
+            std::cout << "Private key: (d = " << d << ", n = " << n << ")" << std::endl;
             bool crackLoop = true;
             while (crackLoop) {
                 std::cout << "Do you want to get the decoded message as an int or a string?" << std::endl;
