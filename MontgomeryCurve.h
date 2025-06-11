@@ -13,9 +13,9 @@ struct MontgomeryPoint {
 class MontgomeryCurve {
 public:
     MontgomeryCurve(const mpz_class& A, const mpz_class& n);
-    MontgomeryPoint double_point(const MontgomeryPoint& P) const;
-    MontgomeryPoint add_points(const MontgomeryPoint& P, const MontgomeryPoint& Q, const MontgomeryPoint& PminusQ) const;
-    MontgomeryPoint scalar_multiply(const mpz_class& k, const MontgomeryPoint& P) const;
+    [[nodiscard]] MontgomeryPoint double_point(const MontgomeryPoint& P) const;
+    [[nodiscard]] MontgomeryPoint add_points(const MontgomeryPoint& P, const MontgomeryPoint& Q, const MontgomeryPoint& PminusQ) const;
+    [[nodiscard]] MontgomeryPoint scalar_multiply(const mpz_class& k, const MontgomeryPoint& P) const;
 private:
     mpz_class A;  // Kurvenparameter A
     mpz_class n;  // Modul n

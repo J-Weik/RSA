@@ -4,6 +4,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(SOURCE_FILES main.cpp)
 
 add_executable(RSA main.cpp
+        MontgomeryCurve.cpp
+        MontgomeryCurve.h
 )
 
 include_directories(${CMAKE_SOURCE_DIR}/extern/gmp/include)

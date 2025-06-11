@@ -51,7 +51,7 @@ MontgomeryPoint MontgomeryCurve::scalar_multiply(const mpz_class& k, const Montg
     MontgomeryPoint R1 = P;
 
     size_t num_bits = mpz_sizeinbase(k.get_mpz_t(), 2);
-    for (ssize_t i = num_bits - 1; i >= 0; --i) {
+    for (ssize_t i = static_cast<long>(num_bits) - 1; i >= 0; --i) {
         if (mpz_tstbit(k.get_mpz_t(), i) == 0) {
             R1 = add_points(R0, R1, P);
             R0 = double_point(R0);
