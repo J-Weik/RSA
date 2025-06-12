@@ -19,6 +19,11 @@ std::mutex result_mutex;
 mpz_class final_p;
 mpz_class final_q;
 std::atomic<uint64_t> primes_checked(0);
+    // Elliptic Curves
+std::mutex cout_mutex;
+std::atomic<bool> found_factor(false);
+std::atomic<unsigned long long> total_curves(0);
+std::mutex factor_mutex;
 
 void factor_thread(mpz_class n, const mpz_class& start, const mpz_class& end) {
     mpz_class p;
@@ -43,6 +48,79 @@ void factor_thread(mpz_class n, const mpz_class& start, const mpz_class& end) {
         mpz_nextprime(p.get_mpz_t(), p.get_mpz_t());
     }
 }
+
+void ecm_thread(const mpz_class &n, const mpz_class &k_B1, const mpz_class &k_B2,
+                const std::vector<mpz_class> &primes, gmp_randstate_t state, unsigned thread_id) {
+
+    while (!found_factor.load()) {
+        total_curves++;
+
+        mpz_class A, x0;
+        mpz_urandomm(x0.get_mpz_t(), state, n.get_mpz_t());
+        mpz_urandomm(A.get_mpz_t(), state, n.get_mpz_t());
+        mpz_class discriminant = (A*A - 4);
+        mpz_mod(discriminant.get_mpz_t(), discriminant.get_mpz_t(), n.get_mpz_t());
+        if (discriminant == 0) continue;
+
+        MontgomeryCurve curve(A, n);
+        MontgomeryPoint P(x0, 1);
+
+        MontgomeryPoint result = curve.scalar_multiply(k_B1, P);
+        mpz_class gcd;
+        mpz_gcd(gcd.get_mpz_t(), result.Z.get_mpz_t(), n.get_mpz_t());
+
+        if (gcd != 1 && gcd != n) {
+            found_factor = true;
+            {
+                std::lock_guard<std::mutex> lock(factor_mutex);
+                final_p = gcd;
+                final_q = n / gcd;
+            }
+            {
+                std::lock_guard<std::mutex> lock(cout_mutex);
+                std::cout << "\nThread " << thread_id << ": Factors found in Phase 1 after " << total_curves.load() << " curves:\n";
+                std::cout << "Factor p: " << final_p << "\n";
+                std::cout << "Factor q: " << final_q << "\n";
+            }
+            return;
+        }
+
+        // Phase 2
+        MontgomeryPoint Q = result;
+        mpz_class gcd2;
+
+        for (const auto &p : primes) {
+            if (p <= k_B1) continue;
+            if (p > k_B2) break;
+            Q = curve.scalar_multiply(p, Q);
+            mpz_gcd(gcd2.get_mpz_t(), Q.Z.get_mpz_t(), n.get_mpz_t());
+            if (gcd2 != 1 && gcd2 != n) break;
+        }
+
+        if (gcd2 != 1 && gcd2 != n) {
+            found_factor = true;
+            {
+                std::lock_guard<std::mutex> lock(factor_mutex);
+                final_p = gcd2;
+                final_q = n / gcd2;
+            }
+            {
+                std::lock_guard<std::mutex> lock(cout_mutex);
+                std::cout << "\nThread " << thread_id << ": Factors found in Phase 2 after " << total_curves.load() << " curves:\n";
+                std::cout << "Factor p: " << final_p << "\n";
+                std::cout << "Factor q: " << final_q << "\n";
+            }
+            return;
+        }
+
+        if (total_curves % 1000 == 0 && thread_id == 0) {
+            std::lock_guard<std::mutex> lock(cout_mutex);
+            std::cout << "Thread " << thread_id << ": " << total_curves.load() << " curves tested...\n";
+        }
+    }
+}
+
+
 void progress_display(const size_t total_primes) {
     constexpr int barWidth = 50; // Width of the progress bar
     while (!found.load()) {
@@ -258,92 +336,104 @@ int main() {
             trim(input);
             std::getline(std::cin, input);
             n = input;
-            std::cout << "Trying to factorize n, this might take a while..." << std::endl;
-
-            // calculate k (the skalar for the point multiplication)
 
             // get B1 based on size of n
-            unsigned long long B1;
-            unsigned long long sizeN = mpz_sizeinbase(n.get_mpz_t(),2);
-            if (sizeN <= 0) return -100;
-            if (sizeN >= 100) B1 = 43000000;
-            else if (sizeN >= 90) B1 = 11000000;
-            else if (sizeN >= 80)  B1 = 3000000;
-            else if (sizeN >= 70)  B1 = 1000000;
-            else if (sizeN >= 60)  B1 = 250000;
-            else if (sizeN >= 50)  B1 = 50000;
-            else if (sizeN >= 40)  B1 = 11000;
-            else if (sizeN >= 30)  B1 = 2000;
-            else if (sizeN >= 20)  B1 = 500;
-            else if (sizeN >= 10)  B1 = 100;
-            else B1 = 50;
-            unsigned long long B2(50 * B1);
-            std::cout << "Based on n chose B1 to be: " << B1 << std::endl;
+            //TODO: rework
+            unsigned long int B1;
+            mpz_class digitsOfFactor;
+            std::cout << "How many digits does the smallest factor have? Enter to skip and choose approximate value: ";
+            std::getline(std::cin, input);
+            trim(input);
+            if (!seq(input, "")) {
+                digitsOfFactor = input;
+                std::cout << "set the length of a factor of n to be approximately " << digitsOfFactor << " digits" << std::endl;
+            }
+            else {
+                // guess factor size to be ~sqrt n
+                mpz_class sqrt_n;
+                mpz_sqrt(sqrt_n.get_mpz_t(), n.get_mpz_t());
+                unsigned long int digits = mpz_sizeinbase(sqrt_n.get_mpz_t(), 10);
+                digitsOfFactor = digits;
+                std::cout << "guessed the length of a factor n to be approximately " << digitsOfFactor << " digits" << std::endl;
+            }
+            // Basierend auf geschätzter Faktorbitlänge B1 auswählen
+            if (digitsOfFactor >= 40) B1 = 50000000;
+            else if (digitsOfFactor >= 35) B1 = 10000000;
+            else if (digitsOfFactor >= 30) B1 = 3000000;
+            else if (digitsOfFactor >= 25) B1 = 1000000;
+            else if (digitsOfFactor >= 20) B1 = 250000;
+            else if (digitsOfFactor >= 15) B1 = 25000;
+            else if (digitsOfFactor >= 10) B1 = 2000;
+            else return 500;
+            std::cout << "Based on length of factor of n chose B1 to be: " << B1 << std::endl;
+
+            unsigned long int B2(50 * B1);
+
+            // Calculate all primes up to B2
+            std::vector<bool> is_prime(B2+1, true);
+            is_prime[0] = is_prime[1] = false;
+            for (unsigned long int i = 2; i * i <= B2; ++i) {
+                if (is_prime[i]) {
+                    for (unsigned long int j = i * i; j <= B2; j += i) {
+                        is_prime[j] = false;
+                    }
+                }
+            }
+            std::vector<mpz_class> primes;
+            for (unsigned long int i = 2; i <= B2; ++i) {
+                if (is_prime[i]) primes.emplace_back(i);
+            }
+            std::cout << "found "<< primes.size() << " primes in range 2 to B2" << std::endl;
 
 
+
+            // calculate k_Bx (the scalar for the point multiplication)
             mpz_class k_B1(1);
             mpz_class k_B2(1);
             // k = \prod_p^B (p)^(round-down to next int(log_p(B))) wobei p stets prim
-            for (mpz_class p = 2; p.get_d() <= static_cast<double>(B1); mpz_nextprime(p.get_mpz_t(), p.get_mpz_t())) {
+            for (mpz_class p : primes) {
+                if (p>B1) break;
                 double exponent = std::floor(std::log(B1)/std::log(p.get_d()));
                 mpz_class max_pow;
                 mpz_pow_ui(max_pow.get_mpz_t(), p.get_mpz_t(), static_cast<unsigned long long>(exponent));
                 mpz_lcm(k_B1.get_mpz_t(), k_B1.get_mpz_t(), max_pow.get_mpz_t());
             }
-            for (mpz_class p = 2; p.get_d() <= static_cast<double>(B2); mpz_nextprime(p.get_mpz_t(), p.get_mpz_t())) {
+            for (mpz_class p : primes) {
                 double exponent = std::floor(std::log(B2)/std::log(p.get_d()));
                 mpz_class max_pow;
                 mpz_pow_ui(max_pow.get_mpz_t(), p.get_mpz_t(), static_cast<unsigned long long>(exponent));
                 mpz_lcm(k_B2.get_mpz_t(), k_B2.get_mpz_t(), max_pow.get_mpz_t());
             }
-
-            int curveAmount = 0;
             std::cout << "k_B1: " << k_B1 << std::endl;
-
-            //create state t for calling random functions and initialize it with a seed and state
-            gmp_randstate_t state;
-            gmp_randinit_default(state);
-            mpz_class seed;
-            mpz_init_set_ui(seed.get_mpz_t(), std::random_device()());
             auto curveBeginning = std::chrono::high_resolution_clock::now();
-            mpz_class p;
-            mpz_class q;
-            while(true) {
-                // TODO Multithread and implement Phase 2
-                // variables needed to define Montgomery Curve
-                curveAmount++;
-                mpz_class A(1);
-                mpz_class x_0(1);
 
-                // set A and x_0 to random numbers in the ring
-                mpz_urandomm(x_0.get_mpz_t(), state, n.get_mpz_t());
-                mpz_urandomm(A.get_mpz_t(), state, n.get_mpz_t());
-                mpz_class discriminant = (A*A - 4) % n;
-                if (discriminant == 0) continue; // Next curve because parameters are bad
+            // get amount of threads
+            unsigned int num_threads = std::thread::hardware_concurrency();
+            if (num_threads == 0) {
+                std::cout << "No threads detected, deafulting to 4" << std::endl;
+                num_threads = 4;
+            } else std::cout << "\nDetected " << num_threads << " Threads" << std::endl;
+            std::vector<std::thread> threads;
 
-                MontgomeryCurve curve(A, n);
-                MontgomeryPoint P(x_0, 1);
+            // Launch threads
+            for (unsigned i = 0; i < num_threads; ++i) {
+                threads.emplace_back([&, i]() {
+                    gmp_randstate_t local_state;
+                    gmp_randinit_mt(local_state);
+                    // Seed using random_device or time + thread id
+                    unsigned long seed = std::random_device{}() + i * 7919;
+                    gmp_randseed_ui(local_state, seed);
 
-                MontgomeryPoint result = curve.scalar_multiply(k_B1, P);
-                mpz_class gcd;
-                mpz_gcd(gcd.get_mpz_t(), result.Z.get_mpz_t(), n.get_mpz_t());
+                    ecm_thread(n, k_B1, k_B2, primes, local_state, i);
 
-                if (gcd != 1 && gcd != n) {
-                    std::cout << "It took " << curveAmount << " curves to find p and q!" << std::endl;
-                    std::cout << "\nFactors p und q found!:" << std::endl;
-                    p = gcd;
-                    q = n / p;
-                    std::cout << "Factor p: " << p << std::endl;
-                    std::cout << "Factor q: " << q << std::endl;
-                    if (p*q!=n) std::cout << "p * q does not equal n" << std::endl;
-                    if (mpz_probab_prime_p(q.get_mpz_t(), 10000)>0) std::cout << "Faktor p is prime!" << std::endl;
-                    else std::cout << "Factor q is not prime!" << std::endl;
-                    if (mpz_probab_prime_p(q.get_mpz_t(), 10000)>0) std::cout << "Factor q is prime!" << std::endl;
-                    else std::cout << "Factor q ist not prime!" << std::endl;
-                    std::cout << "Water is wet!" << std::endl;
-                    break;
-                }
+                    gmp_randclear(local_state);
+                });
             }
+
+            for (auto &t : threads) {
+                if (t.joinable()) t.join();
+            }
+
             auto curveEnding = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> CurveElapsed = curveEnding - curveBeginning;
             long elapsedS = static_cast<long>(CurveElapsed.count());
@@ -354,7 +444,7 @@ int main() {
             else if (elapsedMinutes > 0) std::cout << "Factorizing n took: " << elapsedMinutes << " Minutes and " << elapsedSeconds << " Seconds" << std::endl;
             else std::cout << "Factorizing n took: " << elapsedSeconds << " Seconds" << std::endl;
 
-            mpz_class phi((p-1)*(q-1));
+            mpz_class phi((final_p-1)*(final_q-1));
             mpz_class d;
             mpz_invert(d.get_mpz_t(), e.get_mpz_t(), phi.get_mpz_t());
             std::cout << "Public key: (e = " << e << ", n = " << n << ")" << std::endl;
