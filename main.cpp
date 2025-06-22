@@ -53,7 +53,7 @@ void ecm_thread(const mpz_class &n, const mpz_class &k_B1, const mpz_class &k_B2
                 const std::vector<mpz_class> &primes, gmp_randstate_t state, unsigned thread_id) {
 
     while (!found_factor.load()) {
-        total_curves++;
+        ++total_curves;
 
         mpz_class A, x0;
         mpz_urandomm(x0.get_mpz_t(), state, n.get_mpz_t());
@@ -87,8 +87,8 @@ void ecm_thread(const mpz_class &n, const mpz_class &k_B1, const mpz_class &k_B2
 
         // Phase 2
         MontgomeryPoint Q = result;
-        mpz_class gcd2;
 
+        mpz_class gcd2(1);
         for (const auto &p : primes) {
             if (p <= k_B1) continue;
             if (p > k_B2) break;
@@ -98,6 +98,16 @@ void ecm_thread(const mpz_class &n, const mpz_class &k_B1, const mpz_class &k_B2
         }
 
         if (gcd2 != 1 && gcd2 != n) {
+            // DEBUG CODE REMOVE ONCE DONE
+
+            if (gcd2 == 0) {
+                std::lock_guard<std::mutex> lock(cout_mutex);
+                std::cerr << "Error: gcd2 is zero before division! Q.Z=" << Q.Z << std::endl;
+                std::cerr << "n= " << n << std::endl;
+            }
+
+            // DEBUG CODE
+
             found_factor = true;
             {
                 std::lock_guard<std::mutex> lock(factor_mutex);
@@ -128,21 +138,21 @@ void progress_display(const size_t total_primes) {
         double progress = static_cast<double>(checked) / static_cast<double>(total_primes);
         int pos = static_cast<int>(barWidth * progress);
 
-        std::cout << "\r|";
+        std::cout << "\r[";
         for (int i = 0; i < barWidth; ++i) {
-            if (i <= pos) std::cout << "█";
+            if (i <= pos) std::cout << "=";
             else std::cout << " ";
         }
 
-        std::cout << "| " << std::fixed << std::setprecision(2)
+        std::cout << "] " << std::fixed << std::setprecision(2)
                   << (progress * 100.0) << "%    " << std::flush;
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 
     // Print complete bar when done
-    std::cout << "\r|";
-    for (int i = 0; i < barWidth; ++i) std::cout << "█";
+    std::cout << "\r]";
+    for (int i = 0; i < barWidth; ++i) std::cout << "=";
     std::cout << "| 100.00%" << std::endl;
 }
 
@@ -364,7 +374,7 @@ int main() {
             else if (digitsOfFactor >= 20) B1 = 250000;
             else if (digitsOfFactor >= 15) B1 = 25000;
             else if (digitsOfFactor >= 10) B1 = 2000;
-            else return 500;
+            else B1 = 500;
             std::cout << "Based on length of factor of n chose B1 to be: " << B1 << std::endl;
 
             unsigned long int B2(50 * B1);
@@ -420,7 +430,6 @@ int main() {
                 threads.emplace_back([&, i]() {
                     gmp_randstate_t local_state;
                     gmp_randinit_mt(local_state);
-                    // Seed using random_device or time + thread id
                     unsigned long seed = std::random_device{}() + i * 7919;
                     gmp_randseed_ui(local_state, seed);
 
