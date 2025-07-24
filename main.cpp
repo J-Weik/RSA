@@ -11,8 +11,6 @@
 
 #include "MontgomeryCurve.h"
 
-//Choose-able prime: 100200300400500600700800900000000009008007006005004003002051
-
 // Globals for thread communication
 std::atomic<bool> found(false);
 std::mutex result_mutex;
@@ -89,13 +87,14 @@ void ecm_thread(const mpz_class &n, const mpz_class &k_B1, const mpz_class &k_B2
         MontgomeryPoint Q = result;
 
         mpz_class gcd2(1);
-        for (const auto &p : primes) {
-            if (p <= k_B1) continue;
-            if (p > k_B2) break;
-            Q = curve.scalar_multiply(p, Q);
-            mpz_gcd(gcd2.get_mpz_t(), Q.Z.get_mpz_t(), n.get_mpz_t());
-            if (gcd2 != 1 && gcd2 != n) break;
+         for (const auto &p : primes) {
+             if (p <= k_B1) continue;
+             if (p > k_B2) break;
+             Q = curve.scalar_multiply(p, Q);
+             mpz_gcd(gcd2.get_mpz_t(), Q.Z.get_mpz_t(), n.get_mpz_t());
+             if (gcd2 != 1 && gcd2 != n) break;
         }
+
 
         if (gcd2 != 1 && gcd2 != n) {
             // DEBUG CODE REMOVE ONCE DONE
@@ -626,6 +625,7 @@ int main() {
                 std::cout << "     [9] get Big n for testing" << std::endl;
                 std::cout << "     [D] find big dihedral Prime" << std::endl;
                 std::cout << "     [P] check if number is Prime with high certainty" << std::endl;
+                std::cout << "     [F] Factors are Known, decode message" << std::endl;
                 std::cout << "     [B] Back" << std::endl;
                 std::cout << "     [Q] Quit" << std::endl;
                 std::cout << "Enter your choice: ";
@@ -827,6 +827,37 @@ int main() {
                         }
                         break;
                     }
+                    case 'f':
+                    case 'F': {
+                        std::cout << "Enter e (leave empty to default to 65537): ";
+                        std::getline(std::cin, input);
+                        mpz_class e;
+                        if (input != "") {
+                            e=input;
+                        }
+                        else
+                            e=65537;
+                        std::cout << "Enter p: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class p(input);
+                        std::cout << "Enter q: " << std::endl;
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class q(input);
+                        mpz_class phi=(p-1)*(q-1);
+                        mpz_class n=(p*q);
+                        mpz_class d;
+                        mpz_invert(d.get_mpz_t(), e.get_mpz_t(), phi.get_mpz_t());
+                        std::cout << "private key is: " << d << std::endl;
+                        std::cout << "Enter the encrypted message: ";
+                        std::getline(std::cin, input);
+                        trim(input);
+                        mpz_class c(input);
+                        mpz_class m;
+                        mpz_powm(m.get_mpz_t(), c.get_mpz_t(), d.get_mpz_t(), n.get_mpz_t());
+                        std::cout << "Decrypted message: " << m << std::endl;
+                    }
                     case 'b':
                     case 'B':
                         otherLoop = false;
@@ -849,4 +880,3 @@ int main() {
         }
     }
 }
-
